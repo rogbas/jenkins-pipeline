@@ -94,18 +94,15 @@ def containerBuildPub(Map args) {
 
     println "Running Docker build/publish: ${args.host}/${args.acct}/${args.repo}:${args.tags}"
 
-    docker.withRegistry("https://${args.host}", "${args.auth_id}") {
-
-        // def img = docker.build("${args.acct}/${args.repo}", args.dockerfile)
-        def img = docker.image("${args.acct}/${args.repo}")
-        sh "docker build --build-arg VCS_REF=${env.GIT_SHA} --build-arg BUILD_DATE=`date -u +'%Y-%m-%dT%H:%M:%SZ'` -t ${args.acct}/${args.repo} ${args.dockerfile}"
- 
-        for (int i = 0; i < args.tags.size(); i++) {
-            img.push(args.tags.get(i))
-        }
-
-        return img.id
+    // perform docker login to container registry as the docker-pipeline-plugin doesn't work with the next auth json format
+    withCredentials([[$class          : 'UsernamePasswordMultiBinding', credentialsId: args.auth_id,
+                        usernameVariable: 'USERNAME', passwordVariable: 'PASSWORD']]) {
+      sh "docker login -u ${env.USERNAME} -p ${env.PASSWORD}"
     }
+    
+    sh "docker build --build-arg VCS_REF=${env.GIT_SHA} --build-arg BUILD_DATE=`date -u +'%Y-%m-%dT%H:%M:%SZ'` -t ${args.acct}/${args.repo}:latest ${args.dockerfile}"
+    sh "docker push ${args.acct}/${args.repo}:latest"
+
 }
 
 def getContainerTags(config, Map tags = [:]) {
